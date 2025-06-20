@@ -21,9 +21,10 @@ import { usePromise } from "@raycast/utils";
 import { TermsAcknowledgement, useTermsAcceptance } from "./components/TermsAcknowledgement";
 
 export default function Command() {
-  const [mediaType, setMediaType] = useState<MediaType>("movie");
+  const [mediaType, setMediaType] = useState<MediaType | null>(null);
   const [searchText, setSearchText] = useState("");
   const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const { push } = useNavigation();
 
   // Load preferences
@@ -61,12 +62,11 @@ export default function Command() {
   const storage = useLocalStorage();
 
   // API calls
-  const { data: searchResults, isLoading: isLoadingSearch } = api.useSearch(mediaType, searchText);
-  const { data: trendingMedia, isLoading: isLoadingTrending } = api.useTrending(mediaType);
+  const { data: searchResults, isLoading: isLoadingSearch } = api.useSearch(mediaType || "movie", searchText);
+  const { data: trendingMedia, isLoading: isLoadingTrending } = api.useTrending(mediaType || "movie");
 
   const isUsingAddon = !!baseUrl && baseUrl.trim() !== "";
 
-  // Check terms acceptance on mount
   useEffect(() => {
     (async () => {
       const accepted = await checkTermsAccepted();
@@ -75,7 +75,10 @@ export default function Command() {
       if (accepted) {
         const lastType = await storage.loadLastSearchType();
         setMediaType(lastType);
+      } else {
+        setMediaType("movie");
       }
+      setIsInitialized(true);
     })();
   }, []);
 
@@ -161,11 +164,12 @@ export default function Command() {
     (async () => {
       const lastType = await storage.loadLastSearchType();
       setMediaType(lastType);
+      setIsInitialized(true);
     })();
   };
 
-  // Show terms if not accepted
-  if (termsAccepted === null) {
+  // Show loading state until both terms and media type are loaded
+  if (termsAccepted === null || !isInitialized || mediaType === null) {
     // Loading state
     return <List isLoading={true} />;
   }
@@ -183,6 +187,9 @@ export default function Command() {
       trendingMedia={trendingMedia || []}
       isUsingAddon={isUsingAddon}
       isLoading={isLoadingSearch || isLoadingTrending}
+      recentMedia={storage.recentMedia}
+      isLoadingRecent={storage.isLoadingRecent}
+      getWatchedCount={storage.getWatchedCount}
       onSearchTextChange={(text) => setSearchText(text)}
       onMediaTypeChange={handleMediaTypeChange}
       onMediaSelect={handleMediaSelection}
@@ -205,8 +212,9 @@ function EpisodesView({
   defaultStreamingApp: Application;
   streamingApps: Application[];
 }) {
-  const [selectedSeason, setSelectedSeason] = useState<string>("all");
-  const [showWatchedFilter, setShowWatchedFilter] = useState<"all" | "watched" | "unwatched">("all");
+  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [showWatchedFilter, setShowWatchedFilter] = useState<"all" | "watched" | "unwatched" | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const { push } = useNavigation();
 
   const { data: seriesDetails, isLoading: isLoadingSeriesDetails } = api.useSeriesDetails(media, null);
@@ -214,12 +222,12 @@ function EpisodesView({
   useEffect(() => {
     (async () => {
       const lastSeason = await storage.loadSeasonSelection(media.id);
-      if (lastSeason) {
-        setSelectedSeason(lastSeason.toString());
-      }
+      setSelectedSeason(lastSeason ? lastSeason.toString() : "all");
 
       const watchedFilter = await storage.loadWatchedFilter();
       setShowWatchedFilter(watchedFilter);
+      
+      setIsInitialized(true);
     })();
   }, []);
 
@@ -248,6 +256,11 @@ function EpisodesView({
     setShowWatchedFilter(filter);
     await storage.saveWatchedFilter(filter);
   };
+
+  // Don't render until the state is initialized to prevent flashing
+  if (!isInitialized || selectedSeason === null || showWatchedFilter === null) {
+    return <List isLoading={true} />;
+  }
 
   return (
     <EpisodeList

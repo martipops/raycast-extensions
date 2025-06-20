@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
 export function useLocalStorage() {
   const [recentMedia, setRecentMedia] = useState<RecentMedia[]>([]);
   const [watchedEpisodes, setWatchedEpisodes] = useState<WatchedEpisode[]>([]);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true);
 
   useEffect(() => {
     loadLastSearchType();
@@ -69,6 +70,7 @@ export function useLocalStorage() {
 
   const loadRecentMedia = async () => {
     try {
+      setIsLoadingRecent(true);
       const stored = await LocalStorage.getItem<string>(STORAGE_KEYS.RECENT_MEDIA);
       if (stored) {
         const parsed: RecentMedia[] = JSON.parse(stored);
@@ -78,6 +80,8 @@ export function useLocalStorage() {
       }
     } catch (error) {
       showFailureToast(error, { title: "Failed to load recent media:" });
+    } finally {
+      setIsLoadingRecent(false);
     }
   };
 
@@ -182,10 +186,6 @@ export function useLocalStorage() {
       });
     } catch (error) {
       showFailureToast(error, { title: "Failed to remove watched episode:" });
-      showToast({
-        style: Toast.Style.Failure,
-        title: "Failed to mark as unwatched",
-      });
     }
   };
 
@@ -216,10 +216,6 @@ export function useLocalStorage() {
       });
     } catch (error) {
       showFailureToast(error, { title: "Failed to mark season as watched:" });
-      showFailureToast({
-        style: Toast.Style.Failure,
-        title: "Failed to mark season as watched",
-      });
     }
   };
 
@@ -304,6 +300,7 @@ export function useLocalStorage() {
     saveLastSearchType,
     recentMedia,
     watchedEpisodes,
+    isLoadingRecent,
     saveRecentMedia,
     saveSeasonSelection,
     saveEpisodeSelection,

@@ -1,6 +1,5 @@
 import { ActionPanel, Action, List, Icon } from "@raycast/api";
 import { MediaType, Media, RecentMedia } from "../types";
-import { useLocalStorage } from "../hooks/useLocalStorage";
 
 interface SearchResultsProps {
   mediaType: MediaType;
@@ -9,6 +8,9 @@ interface SearchResultsProps {
   trendingMedia: Media[] | undefined;
   isLoading: boolean;
   isUsingAddon: boolean;
+  recentMedia: RecentMedia[];
+  isLoadingRecent: boolean;
+  getWatchedCount: (seriesId: string, season?: number) => number;
   onSearchTextChange: (text: string) => void;
   onMediaTypeChange: (type: MediaType) => void;
   onMediaSelect: (media: Media) => void;
@@ -24,6 +26,9 @@ export function SearchResults({
   isUsingAddon,
   trendingMedia,
   isLoading,
+  recentMedia,
+  isLoadingRecent,
+  getWatchedCount,
   onSearchTextChange,
   onMediaTypeChange,
   onMediaSelect,
@@ -31,7 +36,6 @@ export function SearchResults({
   onClearRecent,
   onClearWatchHistory,
 }: SearchResultsProps) {
-  const { getWatchedCount, recentMedia } = useLocalStorage();
   // Filter recent media by current media type
   const filteredRecentMedia = recentMedia.filter((media) => media.type === mediaType).slice(0, 10);
 
@@ -47,6 +51,7 @@ export function SearchResults({
     return (
       <ActionPanel>
         {isUsingAddon ? <Action title="Show Streams" onAction={() => onMediaSelect(media)} icon={Icon.Link} /> : null}
+        {/* eslint-disable-next-line @raycast/prefer-title-case */}
         <Action.OpenInBrowser title="Open IMDB Page" url={`https://www.imdb.com/title/${media.imdb_id}`} />
         <Action
           title={getMediaTypeToggle()}
@@ -104,7 +109,7 @@ export function SearchResults({
       }
     >
       {/* Show recent items when not searching */}
-      {searchText.length === 0 && filteredRecentMedia.length > 0 && (
+      {searchText.length === 0 && !isLoadingRecent && filteredRecentMedia.length > 0 && (
         <List.Section title="Recent" subtitle={`${filteredRecentMedia.length} items`}>
           {filteredRecentMedia.map((media) => {
             const watchedCount = media.type === "series" ? getWatchedCount(media.id) : 0;
@@ -128,8 +133,8 @@ export function SearchResults({
         </List.Section>
       )}
 
-      {/* Show trending items under recents */}
-      {searchText.length === 0 && trendingMedia !== undefined && (
+      {/* Show trending items under recents - only when both recent and trending are loaded */}
+      {searchText.length === 0 && !isLoadingRecent && trendingMedia !== undefined && trendingMedia.length > 0 && (
         <List.Section title="Trending" subtitle="Top trending items">
           {trendingMedia.map((media) => {
             const watchedCount = media.type === "series" ? getWatchedCount(media.id) : 0;
@@ -176,7 +181,7 @@ export function SearchResults({
       )}
 
       {/* Show empty state when no search and no recent items */}
-      {searchText.length === 0 && filteredRecentMedia.length === 0 && (
+      {searchText.length === 0 && !isLoadingRecent && filteredRecentMedia.length === 0 && (
         <List.EmptyView
           title="No Recent Items"
           description={`Start searching for ${mediaType === "movie" ? "movies" : "TV shows"} to see them here`}
